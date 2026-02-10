@@ -1,3 +1,18 @@
+# 1. Enable IP Forwarding in the kernel
+sudo sysctl -w net.ipv4.ip_forward=1
+echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
+
+# 2. Identify your interface (Likely ens5 or eth0)
+# Run 'ip link show' to check. We will use ens5 as the modern standard.
+sudo iptables -t nat -A POSTROUTING -o ens5 -j MASQUERADE
+
+# 3. Make the firewall rules persistent (survives reboots)
+sudo apt update && sudo apt install iptables-persistent -y
+# Select "Yes" to save current IPv4 rules when the blue screen appears.
+
+
+
+
 To set up a complete environment with a **Public EC2** and a **Private EC2** using an Ubuntu-based **NAT Instance**, follow this definitive guide. This ensures your private instance can reach the internet (for updates/downloads) without being exposed to the outside world.
 
 ---
