@@ -1,0 +1,80 @@
+To set up a complete environment with a **Public EC2** and a **Private EC2** using an Ubuntu-based **NAT Instance**, follow this definitive guide. This ensures your private instance can reach the internet (for updates/downloads) without being exposed to the outside world.
+
+---
+
+## 🏗️ 1. Architecture Overview
+
+* **VPC:** `10.0.0.0/16`
+* **Public Subnet (`10.0.1.0/24`):** Contains the **NAT Instance** (Public IP required).
+* **Private Subnet (`10.0.2.0/24`):** Contains the **Private Instance** (No public IP).
+
+---
+
+## ☁️ 2. AWS Console Configuration (Infrastructure)
+
+### A. Disable Source/Dest. Check (The most important step)
+
+AWS instances only accept traffic meant for them by default. Since a NAT instance "forwards" traffic for others, you must turn this off.
+
+1. Go to **EC2 Console** > **Instances**.
+2. Select your **Public/NAT Instance**.
+3. Click **Actions** > **Networking** > **Change source/destination check**.
+4. Select **Stop** (Disable) and save.
+
+### B. Update the Private Route Table
+
+1. Go to **VPC Console** > **Route Tables**.
+2. Select the **Private Subnet's Route Table**.
+3. Click **Routes** > **Edit routes**.
+4. Add a route:
+* **Destination:** `0.0.0.0/0`
+* **Target:** Select **Instance** → pick your **NAT Instance ID**.
+
+
+
+---
+
+## 🐧 3. Ubuntu NAT Instance Setup (Software)
+
+SSH into your **Public/NAT instance** and run these commands to turn the Linux kernel into a router.
+
+```bash
+# 1. Enable IP Forwarding in the kernel
+sudo sysctl -w net.ipv4.ip_forward=1
+echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
+
+# 2. Identify your interface (likely ens5 or eth0)
+# Run 'ip link show' to verify.
+sudo iptables -t nat -A POSTROUTING -o ens5 -j MASQUERADE
+
+# 3. Make rules persistent (survive reboots)
+sudo apt update && sudo apt install iptables-persistent -y
+# Select "Yes" to save current IPv4 rules.
+
+```
+
+---
+
+## 🔒 4. Security Group Configuration
+
+| Instance | Inbound Rules | Outbound Rules |
+| --- | --- | --- |
+| **NAT Instance** | **All Traffic** from `10.0.2.0/24` (Private Subnet) | **All Traffic** to `0.0.0.0/0` |
+| **Private Instance** | **SSH** from `10.0.1.0/24` (Public Subnet) | **All Traffic** to `0.0.0.0/0` |
+
+---
+
+## ✅ 5. Verification (The "Ping" Test)
+
+1. **SSH into your Public Instance**.
+2. From there, **SSH into your Private Instance** (using its internal IP).
+3. Test internet connectivity:
+```bash
+ping -c 4 google.com
+
+```
+
+
+4. **If it hangs:** Run `sudo tcpdump -n -i ens5 icmp` on the **NAT Instance** while pinging. If you see the packet arrive but not leave, double-check that **Source/Dest Check** is disabled in the AWS Console.
+
+**Would you like me to provide a Terraform script to automate this entire setup?**
